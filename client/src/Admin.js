@@ -1,3 +1,4 @@
+// Admin.js (Styled with your CSS framework)
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Result from "./Result";
@@ -16,7 +17,6 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState("candidates");
   const [electionStats, setElectionStats] = useState(null);
 
-  // Fetch all required data
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -125,88 +125,77 @@ export default function Admin() {
 
   return (
     <div className="container">
-      <div className="card-header text-center">
-        <h1>⚙️ Admin Dashboard</h1>
-        <p>Manage candidates, voting, and view results</p>
-      </div>
-
-      {message && (
-        <div className={`alert ${message.includes('✅') ? 'alert-success' : 'alert-error'}`}>
-          {message}
+      <div className="content-container animate-fade-in">
+        <div className="card-header text-center">
+          <h1>⚙️ Admin Dashboard</h1>
+          <p className="card-subtitle">
+            Manage candidates, control voting access, and monitor results
+          </p>
         </div>
-      )}
 
-      <div className="tab-nav">
-        {renderTabButton("candidates", "Candidates", "👥")}
-        {renderTabButton("voting", "Voting", "🗳️")}
-        {renderTabButton("results", "Results", "📊")}
-      </div>
+        {message && (
+          <div className={`alert ${message.includes('✅') ? 'alert-success' : 'alert-error'}`}>{message}</div>
+        )}
 
-      {/* Candidates Tab */}
-      {activeTab === "candidates" && (
-        <div>
-          <form onSubmit={handleSubmit} className="form">
-            <input
-              type="text"
-              placeholder="Candidate Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={isLoading}
-            />
-            <input
-              type="text"
-              placeholder="Party"
-              value={party}
-              onChange={(e) => setParty(e.target.value)}
-              disabled={isLoading}
-            />
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              disabled={isLoading}
-            />
-            <button type="submit" disabled={isLoading}>
-              {isLoading ? "Adding..." : "Add Candidate"}
-            </button>
-          </form>
+        <div className="flex gap-4 mb-6 justify-center">
+          {renderTabButton("candidates", "Candidates", "👥")}
+          {renderTabButton("voting", "Voting", "🗳️")}
+          {renderTabButton("results", "Results", "📊")}
+        </div>
 
-          <div className="candidate-list">
+        {activeTab === "candidates" && (
+          <div className="card">
+            <form onSubmit={handleSubmit} className="form">
+              <div className="form-group">
+                <label className="form-label">Candidate Name</label>
+                <input type="text" className="form-input" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Political Party</label>
+                <input type="text" className="form-input" value={party} onChange={(e) => setParty(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Photo</label>
+                <input type="file" className="form-input" accept="image/*" onChange={handlePhotoChange} />
+              </div>
+              <button className="btn btn-primary" type="submit" disabled={isLoading}>Add Candidate</button>
+            </form>
+
             {candidates.length === 0 ? (
-              <p>No candidates yet.</p>
+              <p className="text-center mt-6">No candidates added yet.</p>
             ) : (
-              candidates.map(c => (
-                <div key={c._id} className="candidate-card">
-                  <img src={`${API_URL}${c.photoUrl}`} alt={c.name} />
-                  <div>
-                    <h4>{c.name}</h4>
-                    <p>{c.party} • {c.votes} votes</p>
+              <div className="space-y-3 mt-6">
+                {candidates.map((c, i) => (
+                  <div key={c._id} className="list-item animate-slide-in">
+                    <div className="flex items-center gap-4">
+                      <img src={`${API_URL}${c.photoUrl}`} alt={c.name} className="w-12 h-12 rounded-full object-cover" />
+                      <div>
+                        <h4>{c.name}</h4>
+                        <p>{c.party} • {c.votes} votes</p>
+                      </div>
+                    </div>
+                    <button className="btn btn-outline" onClick={() => deleteCandidate(c._id)}>🗑️ Delete</button>
                   </div>
-                  <button onClick={() => deleteCandidate(c._id)} disabled={isLoading}>
-                    🗑️ Delete
-                  </button>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Voting Tab */}
-      {activeTab === "voting" && (
-        <div className="voting-control">
-          <h3>Voting is currently {votingOpen ? "🟢 OPEN" : "🔴 CLOSED"}</h3>
-          <button onClick={toggleVoting} disabled={isLoading}>
-            {votingOpen ? "Close Voting" : "Open Voting"}
-          </button>
-          <button onClick={resetElection} disabled={isLoading} style={{ marginLeft: "1rem" }}>
-            Reset Election
-          </button>
-        </div>
-      )}
+        {activeTab === "voting" && (
+          <div className="card text-center">
+            <h3>Voting is currently {votingOpen ? "🟢 OPEN" : "🔴 CLOSED"}</h3>
+            <button onClick={toggleVoting} className="btn btn-primary mt-4" disabled={isLoading}>
+              {votingOpen ? "Close Voting" : "Open Voting"}
+            </button>
+            <button onClick={resetElection} className="btn btn-outline mt-4" disabled={isLoading}>
+              Reset Election
+            </button>
+          </div>
+        )}
 
-      {/* Results Tab */}
-      {activeTab === "results" && <Result />}
+        {activeTab === "results" && <Result />}
+      </div>
     </div>
   );
 }
