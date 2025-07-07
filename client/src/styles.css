@@ -168,6 +168,12 @@ a:hover {
   text-decoration: none !important;
 }
 
+/* Prevent color change on Sign in instead link hover in register page */
+.app-container.register-page a:hover {
+  color: var(--deep-blue) !important;
+  text-decoration: none !important;
+}
+
 /* Force h3 to accent gold for readability */
 h3 {
   color: var(--accent-gold) !important;
@@ -601,7 +607,7 @@ h3 {
 }
 
 .btn-outline:hover {
-  background: var(--deep-blue);
+  background: rgba(12, 169, 51, 0.1);
   color: var(--warm-white);
   text-decoration: none;
 }
