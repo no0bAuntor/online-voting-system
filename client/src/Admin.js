@@ -3,6 +3,8 @@ import axios from "axios";
 import Result from "./Result";
 import './styles.css';
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 export default function Admin() {
   const [name, setName] = useState("");
   const [party, setParty] = useState("");
@@ -21,7 +23,7 @@ export default function Admin() {
   const resetElection = async () => {
     setIsLoading(true);
     try {
-      await axios.post("http://localhost:5000/api/vote/reset");
+      await axios.post(`${API_URL}/api/vote/reset`);
       
       // Refresh all data
       await fetchCandidates();
@@ -38,89 +40,61 @@ export default function Admin() {
 
   // Fetch election statistics
   const fetchElectionStats = async () => {
-    try {
-      const response = await axios.get("http://localhost:5000/api/vote/stats");
-      setElectionStats(response.data);
-    } catch (err) {
-      console.error("Failed to fetch election stats:", err);
-    }
+    const response = await axios.get(`${API_URL}/api/vote/stats`);
+    setElectionStats(response.data);
   };
 
-  
-
+  // Fetch all candidates
   const fetchCandidates = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/vote/all");
-      setCandidates(res.data.candidates);
-    } catch (err) {
-      setMessage("Failed to fetch candidates");
-    }
+    const res = await axios.get(`${API_URL}/api/vote/all`);
+    setCandidates(res.data);
   };
 
+  // Fetch voting status
   const fetchVotingStatus = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/vote/status");
-      setVotingOpen(res.data.votingOpen);
-    } catch (err) {
-      setMessage("Failed to fetch voting status");
-    }
+    const res = await axios.get(`${API_URL}/api/vote/status`);
+    setVotingOpen(res.data.open);
   };
 
-  const toggleVoting = async () => {
+  // Open/close voting
+  const toggleVoting = async (open) => {
     setIsLoading(true);
     try {
-      await axios.post("http://localhost:5000/api/vote/status", {
-        votingOpen: !votingOpen,
-      });
-      await fetchVotingStatus();
-      setMessage(`Voting has been ${!votingOpen ? 'opened' : 'closed'} successfully`);
+      await axios.post(`${API_URL}/api/vote/status`, { open });
+      setVotingOpen(open);
+      setMessage(open ? "Voting opened!" : "Voting closed!");
     } catch (err) {
-      setMessage("Failed to update voting status");
+      setMessage(err.response?.data?.message || "Failed to update voting status");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const addCandidate = async () => {
-    if (!name.trim() || !party.trim()) {
-      setMessage("Please enter both candidate name and party");
-      return;
-    }
-
+  // Add candidate
+  const addCandidate = async (formData) => {
     setIsLoading(true);
-    const formData = new FormData();
-    formData.append("name", name.trim());
-    formData.append("party", party.trim());
-    if (photo) {
-      formData.append("photo", photo);
-    }
-
     try {
-      await axios.post("http://localhost:5000/api/vote/add", formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      await axios.post(`${API_URL}/api/vote/add`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setName("");
-      setParty("");
-      setPhoto(null); // Clear photo state after upload
       await fetchCandidates();
-      setMessage(`Candidate ${name} added successfully`);
+      setMessage("Candidate added successfully!");
     } catch (err) {
-      setMessage("Failed to add candidate");
+      setMessage(err.response?.data?.message || "Failed to add candidate");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const deleteCandidate = async (id, candidateName) => {
+  // Delete candidate
+  const deleteCandidate = async (id) => {
     setIsLoading(true);
     try {
-      await axios.delete(`http://localhost:5000/api/vote/${id}`);
+      await axios.delete(`${API_URL}/api/vote/${id}`);
       await fetchCandidates();
-      setMessage(`Candidate ${candidateName} deleted successfully`);
+      setMessage("Candidate deleted successfully!");
     } catch (err) {
-      setMessage("Failed to delete candidate");
+      setMessage(err.response?.data?.message || "Failed to delete candidate");
     } finally {
       setIsLoading(false);
     }
@@ -359,7 +333,7 @@ export default function Admin() {
                       <div className="flex items-center gap-4">
                         {candidate.photoUrl ? (
                           <img 
-                            src={`http://localhost:5000${candidate.photoUrl}`}
+                            src={`${API_URL}${candidate.photoUrl}`}
                             alt={candidate.name}
                             className="w-12 h-12 rounded-full object-cover"
                             style={{

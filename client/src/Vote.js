@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import './styles.css';
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 export default function Vote() {
   const [candidates, setCandidates] = useState([]);
   const [voted, setVoted] = useState(false);
@@ -16,7 +18,7 @@ export default function Vote() {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        "http://localhost:5000/api/vote",
+        `${API_URL}/api/vote`,
         { candidateId: id },
         { headers: { Authorization: token } }
       );
@@ -51,7 +53,7 @@ export default function Vote() {
   useEffect(() => {
     const fetchCandidates = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/vote/candidates");
+        const res = await axios.get(`${API_URL}/api/vote/candidates`);
         setCandidates(res.data);
       } catch (err) {
         console.error("Error fetching candidates", err);
@@ -61,7 +63,7 @@ export default function Vote() {
 
     const checkVotingStatus = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/vote/status");
+        const res = await axios.get(`${API_URL}/api/vote/status`);
         if (!res.data.votingOpen) {
           setMessage("Voting is currently closed.");
           setVoted(true);
@@ -74,7 +76,7 @@ export default function Vote() {
 
     const checkIfVoted = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/vote/voted", {
+        const res = await axios.get(`${API_URL}/api/vote/voted`, {
           headers: { Authorization: localStorage.getItem("token") },
         });
         if (res.data.voted) {
@@ -198,7 +200,7 @@ export default function Vote() {
                     <div className="flex items-center gap-4">
                       {candidate.photoUrl ? (
                         <img 
-                          src={`http://localhost:5000${candidate.photoUrl}`}
+                          src={`${API_URL}${candidate.photoUrl}`}
                           alt={candidate.name}
                           style={{
                             width: '64px',
@@ -261,7 +263,7 @@ export default function Vote() {
               <div className="text-center">
                 {selectedCandidate.photoUrl ? (
                   <img 
-                    src={`http://localhost:5000${selectedCandidate.photoUrl}`}
+                    src={`${API_URL}${selectedCandidate.photoUrl}`}
                     alt={selectedCandidate.name}
                     style={{
                       width: '80px',

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './styles.css';
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 export default function Result() {
   const [candidates, setCandidates] = useState([]);
   const [statistics, setStatistics] = useState({
@@ -13,11 +15,10 @@ export default function Result() {
   const [error, setError] = useState('');
   
   
-  
 
   const fetchResults = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/vote/all');
+      const res = await axios.get(`${API_URL}/api/vote/all`);
       const data = res.data;
       
       // Handle new API response structure
