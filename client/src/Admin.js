@@ -195,13 +195,46 @@ export default function Admin() {
 
         {activeTab === "candidates" && (
           <div className="animate-fade-in">
-            {/* Candidate management code */}
+            <div className="card">
+              <h3>Add New Candidate</h3>
+              <form onSubmit={handleSubmit}>
+                <input
+                  type="text"
+                  value={name}
+                  placeholder="Candidate Name"
+                  onChange={(e) => setName(e.target.value)}
+                />
+                <input
+                  type="text"
+                  value={party}
+                  placeholder="Party"
+                  onChange={(e) => setParty(e.target.value)}
+                />
+                <input type="file" onChange={handlePhotoChange} />
+                <button type="submit">Add Candidate</button>
+              </form>
+            </div>
+            <div className="card">
+              <h3>Registered Candidates</h3>
+              {candidates.map((c) => (
+                <div key={c._id}>
+                  <p>{c.name} ({c.party})</p>
+                  <button onClick={() => deleteCandidate(c._id, c.name)}>Delete</button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
         {activeTab === "voting" && (
           <div className="animate-fade-in">
-            {/* Voting control code */}
+            <h3>Voting is {votingOpen ? 'Open' : 'Closed'}</h3>
+            <button onClick={toggleVoting} disabled={isLoading}>
+              {votingOpen ? 'Close Voting' : 'Open Voting'}
+            </button>
+            <button onClick={resetElection} disabled={isLoading}>
+              Reset Election
+            </button>
           </div>
         )}
 
