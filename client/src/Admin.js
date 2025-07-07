@@ -8,29 +8,41 @@ const API_URL = process.env.REACT_APP_API_URL;
 export default function Admin() {
   const [name, setName] = useState("");
   const [party, setParty] = useState("");
-  const [photo, setPhoto] = useState(null); // New state for candidate photo
+  const [photo, setPhoto] = useState(null);
   const [candidates, setCandidates] = useState([]);
   const [votingOpen, setVotingOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [activeTab, setActiveTab] = useState("candidates"); // candidates, voting, results
-
-  // Election statistics
-  // eslint-disable-next-line no-unused-vars
+  const [activeTab, setActiveTab] = useState("candidates");
   const [electionStats, setElectionStats] = useState(null);
 
-  // Reset election function
+  // Fetch all required data
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  const fetchAllData = async () => {
+    try {
+      const [candidatesRes, votingStatusRes, statsRes] = await Promise.all([
+        axios.get(`${API_URL}/api/vote/all`),
+        axios.get(`${API_URL}/api/vote/status`),
+        axios.get(`${API_URL}/api/vote/stats`)
+      ]);
+      setCandidates(candidatesRes.data?.candidates || []);
+      setVotingOpen(votingStatusRes.data.votingOpen ?? true);
+      setElectionStats(statsRes.data || {});
+    } catch (err) {
+      console.error("Error fetching admin data", err);
+      setMessage("⚠️ Failed to fetch admin data");
+    }
+  };
+
   const resetElection = async () => {
     setIsLoading(true);
     try {
       await axios.post(`${API_URL}/api/vote/reset`);
-      
-      // Refresh all data
-      await fetchCandidates();
-      await fetchVotingStatus();
-      await fetchElectionStats();
-      
-      setMessage("🔄 Election reset successfully! All votes cleared and users can vote again.");
+      await fetchAllData();
+      setMessage("✅ Election reset successfully.");
     } catch (err) {
       setMessage(err.response?.data?.message || "Failed to reset election");
     } finally {
@@ -38,47 +50,39 @@ export default function Admin() {
     }
   };
 
-  // Fetch election statistics
-  const fetchElectionStats = async () => {
-    const response = await axios.get(`${API_URL}/api/vote/stats`);
-    setElectionStats(response.data);
-  };
-
-  // Fetch all candidates
-  const fetchCandidates = async () => {
-    const res = await axios.get(`${API_URL}/api/vote/all`);
-    setCandidates(res.data);
-  };
-
-  // Fetch voting status
-  const fetchVotingStatus = async () => {
-    const res = await axios.get(`${API_URL}/api/vote/status`);
-    setVotingOpen(res.data.open);
-  };
-
-  // Open/close voting
-  const toggleVoting = async (open) => {
+  const toggleVoting = async () => {
     setIsLoading(true);
     try {
-      await axios.post(`${API_URL}/api/vote/status`, { open });
-      setVotingOpen(open);
-      setMessage(open ? "Voting opened!" : "Voting closed!");
+      const newStatus = !votingOpen;
+      await axios.post(`${API_URL}/api/vote/status`, { votingOpen: newStatus });
+      setVotingOpen(newStatus);
+      setMessage(newStatus ? "🟢 Voting opened!" : "🔴 Voting closed.");
     } catch (err) {
-      setMessage(err.response?.data?.message || "Failed to update voting status");
+      setMessage(err.response?.data?.message || "Failed to toggle voting");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Add candidate
-  const addCandidate = async (formData) => {
+  const addCandidate = async () => {
+    if (!name.trim() || !party.trim() || !photo) {
+      setMessage("Please fill in all fields and upload a photo.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("party", party);
+    formData.append("photo", photo);
+
     setIsLoading(true);
     try {
       await axios.post(`${API_URL}/api/vote/add`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      await fetchCandidates();
-      setMessage("Candidate added successfully!");
+      await fetchAllData();
+      setName(""); setParty(""); setPhoto(null);
+      setMessage("✅ Candidate added successfully!");
     } catch (err) {
       setMessage(err.response?.data?.message || "Failed to add candidate");
     } finally {
@@ -86,13 +90,12 @@ export default function Admin() {
     }
   };
 
-  // Delete candidate
   const deleteCandidate = async (id) => {
     setIsLoading(true);
     try {
       await axios.delete(`${API_URL}/api/vote/${id}`);
-      await fetchCandidates();
-      setMessage("Candidate deleted successfully!");
+      await fetchAllData();
+      setMessage("🗑️ Candidate deleted");
     } catch (err) {
       setMessage(err.response?.data?.message || "Failed to delete candidate");
     } finally {
@@ -100,479 +103,110 @@ export default function Admin() {
     }
   };
 
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) setPhoto(file);
+    else setMessage("Please select a valid image.");
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     addCandidate();
   };
 
-  const handlePhotoDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setPhoto(file);
-    } else {
-      setMessage("Please drop an image file.");
-    }
-  };
-
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setPhoto(file);
-    } else {
-      setMessage("Please select an image file.");
-    }
-  };
-
-  useEffect(() => {
-    fetchCandidates();
-    fetchVotingStatus();
-    fetchElectionStats();
-  }, []);
-
-  useEffect(() => {
-    if (message) {
-      const timer = setTimeout(() => setMessage(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [message]);
-
   const renderTabButton = (tabId, label, icon) => (
     <button
       className={`btn ${activeTab === tabId ? 'btn-primary' : 'btn-outline'}`}
       onClick={() => setActiveTab(tabId)}
-      style={{ flex: 1 }}
     >
-      <span>{icon}</span>
-      {label}
+      {icon} {label}
     </button>
   );
 
   return (
     <div className="container">
-      <div className="content-container animate-fade-in">
-        <div className="card-header text-center">
-          <h1>⚙️ Admin Dashboard</h1>
-          <p className="card-subtitle">
-            Manage candidates, control voting access, and monitor results
-          </p>
+      <div className="card-header text-center">
+        <h1>⚙️ Admin Dashboard</h1>
+        <p>Manage candidates, voting, and view results</p>
+      </div>
+
+      {message && (
+        <div className={`alert ${message.includes('✅') ? 'alert-success' : 'alert-error'}`}>
+          {message}
         </div>
+      )}
 
-        {message && (
-          <div className={`alert ${
-            message.includes('successfully') ? 'alert-success' : 'alert-error'
-          } animate-slide-in`}>
-            <span>
-              {message.includes('successfully') ? '✅' : '⚠️'}
-            </span>
-            {message}
-          </div>
-        )}
+      <div className="tab-nav">
+        {renderTabButton("candidates", "Candidates", "👥")}
+        {renderTabButton("voting", "Voting", "🗳️")}
+        {renderTabButton("results", "Results", "📊")}
+      </div>
 
-        {/* Tab Navigation */}
-        <div className="flex gap-2 mb-8" style={{ 
-          display: 'flex', 
-          gap: 'var(--space-2)', 
-          marginBottom: 'var(--space-8)' 
-        }}>
-          {renderTabButton("candidates", "Candidates", "👥")}
-          {renderTabButton("voting", "Voting Control", "🗳️")}
-          {renderTabButton("results", "Results", "📊")}
-        </div>
+      {/* Candidates Tab */}
+      {activeTab === "candidates" && (
+        <div>
+          <form onSubmit={handleSubmit} className="form">
+            <input
+              type="text"
+              placeholder="Candidate Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={isLoading}
+            />
+            <input
+              type="text"
+              placeholder="Party"
+              value={party}
+              onChange={(e) => setParty(e.target.value)}
+              disabled={isLoading}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoChange}
+              disabled={isLoading}
+            />
+            <button type="submit" disabled={isLoading}>
+              {isLoading ? "Adding..." : "Add Candidate"}
+            </button>
+          </form>
 
-        {/* Candidates Tab */}
-        {activeTab === "candidates" && (
-          <div className="animate-fade-in">
-            <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Add New Candidate</h3>
-                <p className="card-subtitle">Register a new candidate for the election</p>
-              </div>
-
-              <form onSubmit={handleSubmit}>
-                <div className="grid gap-4 mb-6" style={{ 
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                  gap: 'var(--space-4)',
-                  marginBottom: 'var(--space-6)'
-                }}>
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="candidateName">
-                      Candidate Name
-                    </label>                    <input
-                      id="candidateName"
-                      type="text"
-                      className="form-input"
-                      placeholder="Enter candidate's full name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      disabled={isLoading}
-                    />
+          <div className="candidate-list">
+            {candidates.length === 0 ? (
+              <p>No candidates yet.</p>
+            ) : (
+              candidates.map(c => (
+                <div key={c._id} className="candidate-card">
+                  <img src={`${API_URL}${c.photoUrl}`} alt={c.name} />
+                  <div>
+                    <h4>{c.name}</h4>
+                    <p>{c.party} • {c.votes} votes</p>
                   </div>
-
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="party">
-                      Political Party
-                    </label>
-                    <input
-                      id="party"
-                      type="text"
-                      className="form-input"
-                      placeholder="Enter party name"
-                      value={party}
-                      onChange={(e) => setParty(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-
-                  {/* Photo Upload */}
-                  <div className="form-group">
-                    <label className="form-label">Candidate Photo</label>
-                    <div
-                      className="drop-area"
-                      onDrop={handlePhotoDrop}
-                      onDragOver={(e) => e.preventDefault()}
-                      onClick={() => document.getElementById("photoUpload").click()}
-                      style={{
-                        border: "2px dashed var(--warm-gray)",
-                        borderRadius: "var(--radius-md)",
-                        padding: "var(--space-6)",
-                        textAlign: "center",
-                        cursor: "pointer",
-                        backgroundColor: "rgba(255, 255, 255, 0.05)",
-                        transition: "all var(--transition-fast)",
-                      }}
-                    >
-                      {photo ? (
-                        <p>Selected: {photo.name}</p>
-                      ) : (
-                        <p>Drag & drop photo here, or click to select</p>
-                      )}
-                      <input
-                        type="file"
-                        id="photoUpload"
-                        accept="image/*"
-                        onChange={handlePhotoChange}
-                        style={{ display: "none" }}
-                      />
-                    </div>
-                    {photo && (
-                      <button
-                        type="button"
-                        onClick={() => setPhoto(null)}
-                        className="btn btn-outline btn-sm mt-2"
-                        style={{ 
-                          borderColor: "var(--alert-red)",
-                          color: "var(--alert-red)",
-                          fontSize: "var(--font-size-sm)",
-                          padding: "var(--space-1) var(--space-3)"
-                        }}
-                      >
-                        Remove Photo
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <button 
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={isLoading || !name.trim() || !party.trim()}
-                >
-                  {isLoading ? (
-                    <>
-                      <span>🔄</span>
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <span>➕</span>
-                      Add Candidate
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
-            <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Registered Candidates</h3>
-                <p className="card-subtitle">
-                  {candidates.length} candidate{candidates.length !== 1 ? "s" : ""} registered
-                </p>
-              </div>
-
-              {candidates.length === 0 ? (
-                <div className="text-center" style={{ padding: "var(--space-8)" }}>
-                  <div 
-                    className="text-6xl mb-4"
-                    style={{ 
-                      fontSize: "var(--font-size-6xl)",
-                      marginBottom: "var(--space-4)"
-                    }}
-                  >
-                    👥
-                  </div>
-                  <h4 className="mb-2">No Candidates Yet</h4>
-                  <p style={{ color: "var(--warm-gray)" }}>
-                    Add your first candidate to get started
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3" style={{ 
-                  display: "flex", 
-                  flexDirection: "column", 
-                  gap: "var(--space-3)" 
-                }}>
-                  {candidates.map((candidate, index) => (
-                    <div 
-                      key={candidate._id}
-                      className="list-item animate-slide-in"
-                      style={{ animationDelay: `${index * 0.1}s` }}
-                    >
-                      <div className="flex items-center gap-4">
-                        {candidate.photoUrl ? (
-                          <img 
-                            src={`${API_URL}${candidate.photoUrl}`}
-                            alt={candidate.name}
-                            className="w-12 h-12 rounded-full object-cover"
-                            style={{
-                              width: "48px",
-                              height: "48px",
-                              borderRadius: "50%",
-                              objectFit: "cover",
-                              border: "2px solid var(--accent-gold)"
-                            }}
-                          />
-                        ) : (
-                          <div 
-                            className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold"
-                            style={{
-                              width: "48px",
-                              height: "48px",
-                              borderRadius: "50%",
-                              background: "var(--secondary-gradient)",
-                              color: "var(--warm-white)",
-                              fontSize: "var(--font-size-lg)",
-                              fontWeight: "700"
-                            }}
-                          >
-                            {candidate.name.charAt(0)}
-                          </div>
-                        )}
-                        <div>
-                          <h4 style={{ marginBottom: "var(--space-1)" }}>
-                            {candidate.name}
-                          </h4>
-                          <p style={{ 
-                            fontSize: "var(--font-size-sm)",
-                            color: "var(--warm-gray)",
-                            margin: 0
-                          }}>
-                            {candidate.party} • {candidate.votes} votes
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <button
-                        className="btn btn-outline"
-                        onClick={() => deleteCandidate(candidate._id, candidate.name)}
-                        disabled={isLoading}
-                        style={{ 
-                          padding: "var(--space-2) var(--space-4)",
-                          fontSize: "var(--font-size-sm)",
-                          borderColor: "var(--alert-red)",
-                          color: "var(--alert-red)"
-                        }}
-                      >
-                        <span>🗑️</span>
-                        Delete
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Voting Control Tab */}
-        {activeTab === "voting" && (
-          <div className="animate-fade-in">
-            <div className="card">
-              <div className="card-header text-center">
-                <h3 className="card-title">Voting Status Control</h3>
-                <p className="card-subtitle">
-                  Manage when voters can cast their ballots
-                </p>
-              </div>
-
-              <div className="text-center">
-                <div 
-                  className="w-24 h-24 rounded-full flex items-center justify-center text-4xl mx-auto mb-6"
-                  style={{
-                    width: "96px",
-                    height: "96px",
-                    borderRadius: "50%",
-                    background: votingOpen ? "var(--secondary-gradient)" : "var(--warm-gray)",
-                    color: "var(--warm-white)",
-                    fontSize: "var(--font-size-5xl)",
-                    margin: "0 auto var(--space-6) auto"
-                  }}
-                >
-                  {votingOpen ? "🟢" : "🔴"}
-                </div>
-
-                <h4 className="mb-4">
-                  Voting is currently{" "}
-                  <span style={{ 
-                    color: votingOpen ? "var(--success-green)" : "var(--alert-red)",
-                    fontWeight: "800"
-                  }}>
-                    {votingOpen ? "OPEN" : "CLOSED"}
-                  </span>
-                </h4>
-
-                <p className="mb-6" style={{ color: "var(--warm-gray)" }}>
-                  {votingOpen 
-                    ? "Voters can currently cast their ballots"
-                    : "Voting is disabled - no new votes can be cast"
-                  }
-                </p>
-
-                <div className="flex gap-4 justify-center mb-6" style={{
-                  display: 'flex',
-                  gap: 'var(--space-4)',
-                  justifyContent: 'center',
-                  marginBottom: 'var(--space-6)'
-                }}>
-                  <button
-                    className={`btn ${votingOpen ? "btn-outline" : "btn-primary"} btn-large`}
-                    onClick={toggleVoting}
-                    disabled={isLoading}
-                    style={{
-                      borderColor: votingOpen ? "var(--alert-red)" : "var(--success-green)",
-                      color: votingOpen ? "var(--alert-red)" : "var(--warm-white)"
-                    }}
-                  >
-                    {isLoading ? (
-                      <>
-                        <span>🔄</span>
-                        Updating...
-                      </>
-                    ) : (
-                      <>
-                        <span>{votingOpen ? "🔒" : "🔓"}</span>
-                        {votingOpen ? "Close Voting" : "Open Voting"}
-                      </>
-                    )}
-                  </button>
-
-                  {/* <button
-                    className="btn btn-outline btn-large"
-                    onClick={fetchElectionStats}
-                    disabled={isLoading}
-                    style={{
-                      borderColor: "var(--primary-blue)",
-                      color: "var(--primary-blue)"
-                    }}
-                  >
-                    <span>📊</span>
-                    Refresh Stats
-                  </button> */}
-                </div>
-              </div>
-
-              {/* Reset Election Section */}
-              <div className="mt-8 pt-6" style={{ 
-                marginTop: "var(--space-8)",
-                paddingTop: "var(--space-6)",
-                borderTop: "2px solid var(--warm-gray-light)"
-              }}>
-                <div className="text-center mb-6">
-                  <h4 style={{ 
-                    fontSize: "var(--font-size-lg)",
-                    fontWeight: "700",
-                    color: "var(--alert-red)",
-                    marginBottom: "var(--space-3)"
-                  }}>
-                    🔄 Reset Election
-                  </h4>
-                  <p style={{ 
-                    fontSize: "var(--font-size-sm)",
-                    color: "var(--warm-gray)",
-                    marginBottom: "var(--space-4)"
-                  }}>
-                    Start a new election by clearing all votes and allowing users to vote again
-                  </p>
-                </div>
-
-                <div className="text-center">
-                  <button
-                    className="btn btn-outline btn-large"
-                    onClick={resetElection}
-                    disabled={isLoading}
-                    style={{
-                      borderColor: "var(--alert-red)",
-                      color: "var(--alert-red)",
-                      borderWidth: "2px"
-                    }}
-                  >
-                    {isLoading ? (
-                      <>
-                        <span>🔄</span>
-                        Resetting...
-                      </>
-                    ) : (
-                      <>
-                        <span>🔄</span>
-                        Reset Entire Election
-                      </>
-                    )}
+                  <button onClick={() => deleteCandidate(c._id)} disabled={isLoading}>
+                    🗑️ Delete
                   </button>
                 </div>
-              </div>
-
-              <div className="mt-8" style={{ 
-                marginTop: "var(--space-8)",
-                padding: "var(--space-4)",
-                background: "rgba(239, 68, 68, 0.05)",
-                borderRadius: "var(--radius-lg)",
-                border: "1px solid rgba(239, 68, 68, 0.2)"
-              }}>
-                <h4 style={{ 
-                  fontSize: "var(--font-size-sm)",
-                  fontWeight: "600",
-                  color: "var(--alert-red)",
-                  marginBottom: "var(--space-2)"
-                }}>
-                  ⚠️ Important Notice
-                </h4>
-                <ul style={{ 
-                  fontSize: "var(--font-size-sm)",
-                  color: "var(--warm-gray)",
-                  margin: 0,
-                  paddingLeft: "var(--space-4)"
-                }}>
-                  <li>Closing voting prevents new votes from being cast</li>
-                  <li>Resetting election clears ALL votes and voting history</li>
-                  <li>Reset action allows all users to vote again</li>
-                  <li>Both actions cannot be undone - use with caution</li>
-                </ul>
-              </div>
-            </div>
+              ))
+            )}
           </div>
-        )}
-
-        {/* Results Tab */}
-        {activeTab === "results" && (
-          <div className="animate-fade-in">
-            <Result />
-          </div>
-        )}
-
         </div>
+      )}
+
+      {/* Voting Tab */}
+      {activeTab === "voting" && (
+        <div className="voting-control">
+          <h3>Voting is currently {votingOpen ? "🟢 OPEN" : "🔴 CLOSED"}</h3>
+          <button onClick={toggleVoting} disabled={isLoading}>
+            {votingOpen ? "Close Voting" : "Open Voting"}
+          </button>
+          <button onClick={resetElection} disabled={isLoading} style={{ marginLeft: "1rem" }}>
+            Reset Election
+          </button>
+        </div>
+      )}
+
+      {/* Results Tab */}
+      {activeTab === "results" && <Result />}
     </div>
   );
 }
-
