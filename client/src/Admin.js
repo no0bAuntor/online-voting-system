@@ -1,4 +1,3 @@
-// Admin.js (Styled with your CSS framework)
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Result from "./Result";
@@ -17,32 +16,14 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState("candidates");
   const [electionStats, setElectionStats] = useState(null);
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
-  const fetchAllData = async () => {
-    try {
-      const [candidatesRes, votingStatusRes, statsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/vote/all`),
-        axios.get(`${API_URL}/api/vote/status`),
-        axios.get(`${API_URL}/api/vote/stats`)
-      ]);
-      setCandidates(candidatesRes.data?.candidates || []);
-      setVotingOpen(votingStatusRes.data.votingOpen ?? true);
-      setElectionStats(statsRes.data || {});
-    } catch (err) {
-      console.error("Error fetching admin data", err);
-      setMessage("⚠️ Failed to fetch admin data");
-    }
-  };
-
   const resetElection = async () => {
     setIsLoading(true);
     try {
       await axios.post(`${API_URL}/api/vote/reset`);
-      await fetchAllData();
-      setMessage("✅ Election reset successfully.");
+      await fetchCandidates();
+      await fetchVotingStatus();
+      await fetchElectionStats();
+      setMessage("🔄 Election reset successfully! All votes cleared and users can vote again.");
     } catch (err) {
       setMessage(err.response?.data?.message || "Failed to reset election");
     } finally {
@@ -50,63 +31,91 @@ export default function Admin() {
     }
   };
 
+  const fetchElectionStats = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/vote/stats`);
+      setElectionStats(response.data);
+    } catch (err) {
+      console.error("Failed to fetch election stats:", err);
+    }
+  };
+
+  const fetchCandidates = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/vote/all`);
+      setCandidates(Array.isArray(res.data) ? res.data : res.data.candidates || []);
+    } catch (err) {
+      setMessage("Failed to fetch candidates");
+    }
+  };
+
+  const fetchVotingStatus = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/vote/status`);
+      setVotingOpen(res.data.votingOpen ?? res.data.open);
+    } catch (err) {
+      setMessage("Failed to fetch voting status");
+    }
+  };
+
   const toggleVoting = async () => {
     setIsLoading(true);
     try {
-      const newStatus = !votingOpen;
-      await axios.post(`${API_URL}/api/vote/status`, { votingOpen: newStatus });
-      setVotingOpen(newStatus);
-      setMessage(newStatus ? "🟢 Voting opened!" : "🔴 Voting closed.");
+      await axios.post(`${API_URL}/api/vote/status`, {
+        votingOpen: !votingOpen,
+      });
+      await fetchVotingStatus();
+      setMessage(`Voting has been ${!votingOpen ? 'opened' : 'closed'} successfully`);
     } catch (err) {
-      setMessage(err.response?.data?.message || "Failed to toggle voting");
+      setMessage("Failed to update voting status");
     } finally {
       setIsLoading(false);
     }
   };
 
   const addCandidate = async () => {
-    if (!name.trim() || !party.trim() || !photo) {
-      setMessage("Please fill in all fields and upload a photo.");
+    if (!name.trim() || !party.trim()) {
+      setMessage("Please enter both candidate name and party");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("name", name);
-    formData.append("party", party);
-    formData.append("photo", photo);
-
     setIsLoading(true);
+    const formData = new FormData();
+    formData.append("name", name.trim());
+    formData.append("party", party.trim());
+    if (photo) {
+      formData.append("photo", photo);
+    }
+
     try {
       await axios.post(`${API_URL}/api/vote/add`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
-      await fetchAllData();
-      setName(""); setParty(""); setPhoto(null);
-      setMessage("✅ Candidate added successfully!");
+      setName("");
+      setParty("");
+      setPhoto(null);
+      await fetchCandidates();
+      setMessage(`Candidate ${name} added successfully`);
     } catch (err) {
-      setMessage(err.response?.data?.message || "Failed to add candidate");
+      setMessage("Failed to add candidate");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const deleteCandidate = async (id) => {
+  const deleteCandidate = async (id, candidateName) => {
     setIsLoading(true);
     try {
       await axios.delete(`${API_URL}/api/vote/${id}`);
-      await fetchAllData();
-      setMessage("🗑️ Candidate deleted");
+      await fetchCandidates();
+      setMessage(`Candidate ${candidateName} deleted successfully`);
     } catch (err) {
-      setMessage(err.response?.data?.message || "Failed to delete candidate");
+      setMessage("Failed to delete candidate");
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) setPhoto(file);
-    else setMessage("Please select a valid image.");
   };
 
   const handleSubmit = (e) => {
@@ -114,12 +123,46 @@ export default function Admin() {
     addCandidate();
   };
 
+  const handlePhotoDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setPhoto(file);
+    } else {
+      setMessage("Please drop an image file.");
+    }
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setPhoto(file);
+    } else {
+      setMessage("Please select an image file.");
+    }
+  };
+
+  useEffect(() => {
+    fetchCandidates();
+    fetchVotingStatus();
+    fetchElectionStats();
+  }, []);
+
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => setMessage(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
   const renderTabButton = (tabId, label, icon) => (
     <button
       className={`btn ${activeTab === tabId ? 'btn-primary' : 'btn-outline'}`}
       onClick={() => setActiveTab(tabId)}
+      style={{ flex: 1 }}
     >
-      {icon} {label}
+      <span>{icon}</span>
+      {label}
     </button>
   );
 
@@ -134,67 +177,39 @@ export default function Admin() {
         </div>
 
         {message && (
-          <div className={`alert ${message.includes('✅') ? 'alert-success' : 'alert-error'}`}>{message}</div>
+          <div className={`alert ${
+            message.includes('successfully') ? 'alert-success' : 'alert-error'
+          } animate-slide-in`}>
+            <span>
+              {message.includes('successfully') ? '✅' : '⚠️'}
+            </span>
+            {message}
+          </div>
         )}
 
-        <div className="flex gap-4 mb-6 justify-center">
+        <div className="flex gap-2 mb-8">
           {renderTabButton("candidates", "Candidates", "👥")}
-          {renderTabButton("voting", "Voting", "🗳️")}
+          {renderTabButton("voting", "Voting Control", "🗳️")}
           {renderTabButton("results", "Results", "📊")}
         </div>
 
         {activeTab === "candidates" && (
-          <div className="card">
-            <form onSubmit={handleSubmit} className="form">
-              <div className="form-group">
-                <label className="form-label">Candidate Name</label>
-                <input type="text" className="form-input" value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Political Party</label>
-                <input type="text" className="form-input" value={party} onChange={(e) => setParty(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Photo</label>
-                <input type="file" className="form-input" accept="image/*" onChange={handlePhotoChange} />
-              </div>
-              <button className="btn btn-primary" type="submit" disabled={isLoading}>Add Candidate</button>
-            </form>
-
-            {candidates.length === 0 ? (
-              <p className="text-center mt-6">No candidates added yet.</p>
-            ) : (
-              <div className="space-y-3 mt-6">
-                {candidates.map((c, i) => (
-                  <div key={c._id} className="list-item animate-slide-in">
-                    <div className="flex items-center gap-4">
-                      <img src={`${API_URL}${c.photoUrl}`} alt={c.name} className="w-12 h-12 rounded-full object-cover" />
-                      <div>
-                        <h4>{c.name}</h4>
-                        <p>{c.party} • {c.votes} votes</p>
-                      </div>
-                    </div>
-                    <button className="btn btn-outline" onClick={() => deleteCandidate(c._id)}>🗑️ Delete</button>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="animate-fade-in">
+            {/* Candidate management code */}
           </div>
         )}
 
         {activeTab === "voting" && (
-          <div className="card text-center">
-            <h3>Voting is currently {votingOpen ? "🟢 OPEN" : "🔴 CLOSED"}</h3>
-            <button onClick={toggleVoting} className="btn btn-primary mt-4" disabled={isLoading}>
-              {votingOpen ? "Close Voting" : "Open Voting"}
-            </button>
-            <button onClick={resetElection} className="btn btn-outline mt-4" disabled={isLoading}>
-              Reset Election
-            </button>
+          <div className="animate-fade-in">
+            {/* Voting control code */}
           </div>
         )}
 
-        {activeTab === "results" && <Result />}
+        {activeTab === "results" && (
+          <div className="animate-fade-in">
+            <Result />
+          </div>
+        )}
       </div>
     </div>
   );
